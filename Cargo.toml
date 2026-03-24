@@ -1,0 +1,33 @@
+[package]
+name = "ranitask"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "5"
+rand = "0.8"
+
+[dependencies.winapi]
+version = "0.3"
+features = [
+    "winuser",
+    "windef",
+    "minwindef",
+    "libloaderapi",
+    "processthreadsapi",
+    "profileapi",
+    "synchapi",
+    "winbase",
+    "errhandlingapi",
+    "wingdi",
+    "commctrl",
+]
+
+[build-dependencies]
+winres = "0.1"
+
+[profile.release]
+opt-level = 3
+lto = true
