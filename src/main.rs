@@ -3,7 +3,9 @@
 mod config;
 mod gui;
 mod hotkeys;
+mod hp_monitor;
 mod network;
+mod pet_cycle;
 mod player;
 mod recorder;
 mod sequence;
@@ -72,6 +74,16 @@ fn main() {
         }
     }
 
+    // Auto-start pet cycle if configured
+    if cfg.pet_cycle_enabled {
+        pet_cycle::start(cfg.pet_cycle_interval_secs);
+    }
+
+    // Auto-start HP monitor if configured
+    if cfg.hp_monitor_enabled && cfg.hp_monitor_color != 0 {
+        hp_monitor::start(cfg.hp_monitor_x, cfg.hp_monitor_y, cfg.hp_monitor_color);
+    }
+
     // Load default sequence (or fall back to last saved) into LAST_EVENTS
     let load_name = cfg.default_sequence.clone()
         .or_else(|| storage::list_sequences().ok().and_then(|n| n.last().cloned()));
@@ -136,6 +148,8 @@ fn main() {
     }
 
     // Cleanup
+    hp_monitor::stop();
+    pet_cycle::stop();
     network::stop_listener();
     hotkeys::uninstall_hook();
 }

@@ -1,5 +1,5 @@
 use crate::win32_helpers::{wide, create_control};
-use crate::{config, network, player, recorder};
+use crate::{config, hp_monitor, network, pet_cycle, player, recorder};
 use super::*;
 use winapi::shared::minwindef::*;
 use winapi::shared::windef::*;
@@ -12,6 +12,8 @@ pub(crate) struct ToolbarControls {
     pub hwnd_btn_play: HWND,
     pub hwnd_chk_loop: HWND,
     pub hwnd_chk_topmost: HWND,
+    pub hwnd_chk_pet: HWND,
+    pub hwnd_chk_hp: HWND,
     pub hwnd_status: HWND,
     pub config: config::AppConfig,
 }
@@ -39,7 +41,7 @@ pub fn create_toolbar_window(cfg: &config::AppConfig) -> HWND {
 
         // Calculate position: top-right of screen
         let screen_w = GetSystemMetrics(SM_CXSCREEN);
-        let win_w = 530;
+        let win_w = 620;
         let win_h = 52;
 
         let mut rect = RECT {
@@ -85,6 +87,8 @@ pub fn create_toolbar_window(cfg: &config::AppConfig) -> HWND {
             hwnd_btn_play: std::ptr::null_mut(),
             hwnd_chk_loop: std::ptr::null_mut(),
             hwnd_chk_topmost: std::ptr::null_mut(),
+            hwnd_chk_pet: std::ptr::null_mut(),
+            hwnd_chk_hp: std::ptr::null_mut(),
             hwnd_status: std::ptr::null_mut(),
             config: cfg.clone(),
         });
@@ -138,30 +142,48 @@ unsafe fn create_controls(hwnd: HWND, hinstance: HINSTANCE, cfg: &config::AppCon
         SendMessageW(chk_top, BM_SETCHECK, BST_CHECKED as WPARAM, 0);
     }
 
+    let chk_pet = create_control(
+        hwnd, hinstance, font, "BUTTON", "Pet",
+        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX as u32, 0,
+        230, y, 42, h, IDC_CHK_PET,
+    );
+    if cfg.pet_cycle_enabled {
+        SendMessageW(chk_pet, BM_SETCHECK, BST_CHECKED as WPARAM, 0);
+    }
+
+    let chk_hp = create_control(
+        hwnd, hinstance, font, "BUTTON", "HP",
+        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX as u32, 0,
+        274, y, 36, h, IDC_CHK_HP,
+    );
+    if cfg.hp_monitor_enabled {
+        SendMessageW(chk_hp, BM_SETCHECK, BST_CHECKED as WPARAM, 0);
+    }
+
     // -- Group 3: Navigation (gap before) --
     create_control(
         hwnd, hinstance, font, "BUTTON", "\u{2699}",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON as u32, 0,
-        240, y, 26, h, IDC_BTN_SETTINGS,
+        320, y, 26, h, IDC_BTN_SETTINGS,
     );
 
     create_control(
         hwnd, hinstance, font, "BUTTON", "Sequences",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON as u32, 0,
-        270, y, 74, h, IDC_BTN_SEQUENCES,
+        350, y, 74, h, IDC_BTN_SEQUENCES,
     );
 
     create_control(
         hwnd, hinstance, font, "BUTTON", "Remote",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON as u32, 0,
-        350, y, 66, h, IDC_BTN_REMOTE,
+        430, y, 66, h, IDC_BTN_REMOTE,
     );
 
     // -- Status label --
     let status = create_control(
         hwnd, hinstance, font, "STATIC", "Idle",
         WS_CHILD | WS_VISIBLE | SS_LEFT, 0,
-        424, y + 2, 96, h, IDC_STATUS,
+        504, y + 2, 106, h, IDC_STATUS,
     );
 
     // Update stored controls
@@ -171,6 +193,8 @@ unsafe fn create_controls(hwnd: HWND, hinstance: HINSTANCE, cfg: &config::AppCon
         (*ptr).hwnd_btn_play = btn_play;
         (*ptr).hwnd_chk_loop = chk_loop;
         (*ptr).hwnd_chk_topmost = chk_top;
+        (*ptr).hwnd_chk_pet = chk_pet;
+        (*ptr).hwnd_chk_hp = chk_hp;
         (*ptr).hwnd_status = status;
     }
 }
@@ -216,6 +240,49 @@ unsafe extern "system" fn toolbar_wnd_proc(
                         }
                     }
                 }
+                x if x == IDC_CHK_HP => {
+                    let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut ToolbarControls;
+                    if !ptr.is_null() {
+                        let checked = SendMessageW((*ptr).hwnd_chk_hp, BM_GETCHECK, 0, 0)
+                            == BST_CHECKED as isize;
+                        if checked {
+                            let cfg = &(*ptr).config;
+                            if cfg.hp_monitor_color != 0 {
+                                hp_monitor::start(cfg.hp_monitor_x, cfg.hp_monitor_y, cfg.hp_monitor_color);
+                            } else {
+                                let msg = crate::win32_helpers::wide(
+                                    "Configure HP pixel in Settings first.\nSet X/Y and click Sample.",
+                                );
+                                let title = crate::win32_helpers::wide("HP Monitor");
+                                MessageBoxW(hwnd, msg.as_ptr(), title.as_ptr(), MB_OK | MB_ICONWARNING);
+                                SendMessageW((*ptr).hwnd_chk_hp, BM_SETCHECK, BST_UNCHECKED as WPARAM, 0);
+                                return 0;
+                            }
+                        } else {
+                            hp_monitor::stop();
+                        }
+                        (*ptr).config.hp_monitor_enabled = checked;
+                        if let Err(e) = config::save_config(&(*ptr).config) {
+                            eprintln!("[RaniTask] Config save failed: {}", e);
+                        }
+                    }
+                }
+                x if x == IDC_CHK_PET => {
+                    let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut ToolbarControls;
+                    if !ptr.is_null() {
+                        let checked = SendMessageW((*ptr).hwnd_chk_pet, BM_GETCHECK, 0, 0)
+                            == BST_CHECKED as isize;
+                        if checked {
+                            pet_cycle::start((*ptr).config.pet_cycle_interval_secs);
+                        } else {
+                            pet_cycle::stop();
+                        }
+                        (*ptr).config.pet_cycle_enabled = checked;
+                        if let Err(e) = config::save_config(&(*ptr).config) {
+                            eprintln!("[RaniTask] Config save failed: {}", e);
+                        }
+                    }
+                }
                 x if x == IDC_BTN_SETTINGS => {
                     settings::show_settings_dialog(hwnd);
                 }
@@ -234,7 +301,7 @@ unsafe extern "system" fn toolbar_wnd_proc(
                 let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut ToolbarControls;
                 if !ptr.is_null() {
                     // Update status text
-                    let status = if recorder::is_recording() {
+                    let base_status = if recorder::is_recording() {
                         "Recording..."
                     } else if player::is_playing() {
                         if player::is_loop_mode() {
@@ -247,7 +314,15 @@ unsafe extern "system" fn toolbar_wnd_proc(
                     } else {
                         "Idle"
                     };
-                    SetWindowTextW((*ptr).hwnd_status, wide(status).as_ptr());
+                    let pet = pet_cycle::is_active();
+                    let hp = hp_monitor::is_active();
+                    let status = match (pet, hp) {
+                        (true, true) => format!("{} [Pet][HP]", base_status),
+                        (true, false) => format!("{} [Pet]", base_status),
+                        (false, true) => format!("{} [HP]", base_status),
+                        (false, false) => base_status.to_string(),
+                    };
+                    SetWindowTextW((*ptr).hwnd_status, wide(&status).as_ptr());
 
                     // Update button text
                     let rec_text = if recorder::is_recording() {

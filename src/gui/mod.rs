@@ -33,12 +33,20 @@ pub(crate) const IDC_BTN_SETTINGS: u16 = 105;
 pub(crate) const IDC_STATUS: u16 = 106;
 pub(crate) const IDC_BTN_SEQUENCES: u16 = 107;
 pub(crate) const IDC_BTN_REMOTE: u16 = 108;
+pub(crate) const IDC_CHK_PET: u16 = 109;
+pub(crate) const IDC_CHK_HP: u16 = 110;
 
 // Settings dialog controls
 pub(crate) const IDC_COMBO_RECORD_KEY: u16 = 201;
 pub(crate) const IDC_COMBO_PLAY_KEY: u16 = 202;
 pub(crate) const IDC_BTN_SETTINGS_OK: u16 = 203;
 pub(crate) const IDC_COMBO_QUEUE_KEY: u16 = 204;
+pub(crate) const IDC_EDIT_HP_X: u16 = 205;
+pub(crate) const IDC_EDIT_HP_Y: u16 = 206;
+pub(crate) const IDC_BTN_HP_SAMPLE: u16 = 207;
+pub(crate) const IDC_STATIC_HP_COLOR: u16 = 208;
+pub(crate) const IDC_BTN_HP_PICK: u16 = 209;
+pub(crate) const IDC_STATIC_HP_LIVE: u16 = 210;
 
 // Save dialog controls
 pub(crate) const IDC_EDIT_SEQ_NAME: u16 = 301;
@@ -101,6 +109,7 @@ pub(crate) const IDC_BTN_BIND_ADD_CANCEL: u16 = 857;
 // Timer IDs
 pub(crate) const TIMER_STATUS: usize = 1;
 pub(crate) const TIMER_REMOTE: usize = 2;
+pub(crate) const TIMER_HP_PICK: usize = 3;
 
 pub fn handle_record_toggle() {
     if recorder::is_recording() {

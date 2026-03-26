@@ -283,7 +283,7 @@ fn send_mouse_input(flags: u32, dx: i32, dy: i32, mouse_data: i32) {
     }
 }
 
-fn send_key_input(vk: u16, scan_code: u16, flags: u32) {
+pub fn send_key_input(vk: u16, scan_code: u16, flags: u32) {
     let mut input = unsafe { std::mem::zeroed::<INPUT>() };
     input.type_ = INPUT_KEYBOARD;
     unsafe {

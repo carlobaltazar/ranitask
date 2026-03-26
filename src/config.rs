@@ -29,9 +29,22 @@ pub struct AppConfig {
     pub queue_vk: Option<u16>,
     #[serde(default)]
     pub default_sequence: Option<String>,
+    #[serde(default)]
+    pub pet_cycle_enabled: bool,
+    #[serde(default = "default_pet_cycle_interval")]
+    pub pet_cycle_interval_secs: u64,
+    #[serde(default)]
+    pub hp_monitor_enabled: bool,
+    #[serde(default)]
+    pub hp_monitor_x: i32,
+    #[serde(default)]
+    pub hp_monitor_y: i32,
+    #[serde(default)]
+    pub hp_monitor_color: u32,
 }
 
 fn default_remote_port() -> u16 { 9847 }
+fn default_pet_cycle_interval() -> u64 { 120 }
 
 impl Default for AppConfig {
     fn default() -> Self {
@@ -48,6 +61,12 @@ impl Default for AppConfig {
             shuffle_queue: false,
             queue_vk: None,
             default_sequence: None,
+            pet_cycle_enabled: false,
+            pet_cycle_interval_secs: default_pet_cycle_interval(),
+            hp_monitor_enabled: false,
+            hp_monitor_x: 0,
+            hp_monitor_y: 0,
+            hp_monitor_color: 0,
         }
     }
 }
