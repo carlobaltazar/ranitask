@@ -44,6 +44,8 @@ pub struct Sequence {
     pub events: Vec<InputEvent>,
     pub created_at: String,
     pub total_duration_micros: i64,
+    #[serde(default)]
+    pub group: Option<String>,
 }
 
 impl Sequence {
@@ -56,6 +58,7 @@ impl Sequence {
             events,
             created_at,
             total_duration_micros,
+            group: None,
         }
     }
 

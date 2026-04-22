@@ -3,6 +3,8 @@ mod settings;
 mod save_dialog;
 mod sequences;
 mod bind_key;
+mod rename_dialog;
+mod set_group_dialog;
 mod remote;
 mod add_binding;
 
@@ -23,6 +25,15 @@ pub(crate) static SEQUENCE_QUEUE: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
 // Store selected sequence name for bind-key dialog
 pub(crate) static BIND_SEQ_NAME: Mutex<Option<String>> = Mutex::new(None);
+
+// Store selected sequence name for rename dialog
+pub(crate) static RENAME_SEQ_NAME: Mutex<Option<String>> = Mutex::new(None);
+
+// Store selected sequence name for set-group dialog
+pub(crate) static SET_GROUP_SEQ_NAME: Mutex<Option<String>> = Mutex::new(None);
+
+// Groups that are currently collapsed in the sequences list
+pub(crate) static COLLAPSED_GROUPS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
 // Control IDs - Toolbar
 pub(crate) const IDC_BTN_RECORD: u16 = 101;
@@ -59,6 +70,8 @@ pub(crate) const IDC_BTN_BIND_KEY: u16 = 402;
 pub(crate) const IDC_BTN_DELETE_SEQ: u16 = 403;
 pub(crate) const IDC_BTN_PLAY_SEQ: u16 = 404;
 pub(crate) const IDC_BTN_SET_DEFAULT: u16 = 405;
+pub(crate) const IDC_BTN_RENAME_SEQ: u16 = 406;
+pub(crate) const IDC_BTN_SET_GROUP: u16 = 407;
 
 // Queue controls
 pub(crate) const IDC_BTN_QUEUE_ADD: u16 = 601;

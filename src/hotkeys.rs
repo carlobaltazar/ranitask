@@ -199,11 +199,7 @@ unsafe extern "system" fn hotkey_hook_proc(
 ) -> LRESULT {
     if n_code >= 0 && w_param as u32 == WM_KEYDOWN {
         let info = &*(l_param as *const KBDLLHOOKSTRUCT);
-
-        // Skip injected events
-        if (info.flags & LLKHF_INJECTED) != 0 {
-            return CallNextHookEx(std::ptr::null_mut(), n_code, w_param, l_param);
-        }
+        let is_injected = (info.flags & LLKHF_INJECTED) != 0;
 
         let vk = info.vkCode as u16;
         let thread_id = MAIN_THREAD_ID.load(Ordering::Acquire);
@@ -211,7 +207,9 @@ unsafe extern "system" fn hotkey_hook_proc(
         // Use lock in hook callback
         if let Ok(hk) = CURRENT_HOTKEYS.lock() {
             if let Some(ref set) = *hk {
-                // Check remote bindings first (they use modifiers)
+                // Remote bindings fire for both manual and injected events so that
+                // recorded sequences containing modifier combos (e.g. Shift+Q) still
+                // trigger remote sends during playback.
                 let mods = get_current_modifiers();
                 if mods != 0 {
                     for (i, (bind_mods, bind_vk, _)) in set.remote_bindings.iter().enumerate() {
@@ -225,6 +223,12 @@ unsafe extern "system" fn hotkey_hook_proc(
                             return CallNextHookEx(std::ptr::null_mut(), n_code, w_param, l_param);
                         }
                     }
+                }
+
+                // Local hotkeys only fire on real user input to prevent playback
+                // from retriggering recording or cascading into other sequences.
+                if is_injected {
+                    return CallNextHookEx(std::ptr::null_mut(), n_code, w_param, l_param);
                 }
 
                 // Then check record/stop/sequence hotkeys (no modifiers)
