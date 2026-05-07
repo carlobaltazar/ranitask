@@ -4,9 +4,9 @@ use std::path::PathBuf;
 
 fn sequences_dir() -> PathBuf {
     let base = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
-    let dir = base.join("ranitask").join("sequences");
+    let dir = base.join("ranify2").join("sequences");
     if let Err(e) = fs::create_dir_all(&dir) {
-        eprintln!("[RaniTask] Failed to create sequences dir: {}", e);
+        eprintln!("[Ranify2] Failed to create sequences dir: {}", e);
     }
     dir
 }

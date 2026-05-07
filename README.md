@@ -1,4 +1,4 @@
-# RaniTask
+# Ranify2
 
 A Windows input automation tool with hotkey support, pet cycling, and HP monitoring.
 
@@ -6,8 +6,8 @@ A Windows input automation tool with hotkey support, pet cycling, and HP monitor
 
 Get the latest installer or executable from the [Releases page](https://github.com/carlobaltazar/ranitask/releases).
 
-- **RaniTaskSetup.exe** — Windows installer (recommended)
-- **ranitask.exe** — Standalone executable
+- **Ranify2Setup.exe** — Windows installer (recommended)
+- **ranify2.exe** — Standalone executable
 
 ## Build Status
 
@@ -21,4 +21,4 @@ Requires [Rust](https://rustup.rs/) installed.
 cargo build --release
 ```
 
-Output: `target/release/ranitask.exe`
+Output: `target/release/ranify2.exe`

@@ -24,7 +24,7 @@ pub fn start(x: i32, y: i32, ref_color: u32) {
 
     thread::spawn(move || {
         println!(
-            "[RaniTask] HP monitor started (x={}, y={}, ref=0x{:06X})",
+            "[Ranify2] HP monitor started (x={}, y={}, ref=0x{:06X})",
             x, y, ref_color
         );
 
@@ -59,7 +59,7 @@ pub fn start(x: i32, y: i32, ref_color: u32) {
             thread::sleep(Duration::from_millis(200));
         }
 
-        println!("[RaniTask] HP monitor stopped.");
+        println!("[Ranify2] HP monitor stopped.");
         ACTIVE.store(false, Ordering::Release);
     });
 }

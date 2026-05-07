@@ -20,7 +20,7 @@ pub fn start(interval_secs: u64) {
     ACTIVE.store(true, Ordering::Release);
 
     thread::spawn(move || {
-        println!("[RaniTask] Pet cycle started (interval: {}s)", interval_secs);
+        println!("[Ranify2] Pet cycle started (interval: {}s)", interval_secs);
 
         // Get scan code for 'A' key (VK 0x41)
         let vk: u16 = 0x41;
@@ -30,7 +30,7 @@ pub fn start(interval_secs: u64) {
             // Sleep in 1-second chunks so we can respond to cancel quickly
             for _ in 0..interval_secs {
                 if CANCEL.load(Ordering::Acquire) {
-                    println!("[RaniTask] Pet cycle stopped.");
+                    println!("[Ranify2] Pet cycle stopped.");
                     ACTIVE.store(false, Ordering::Release);
                     return;
                 }
@@ -53,10 +53,10 @@ pub fn start(interval_secs: u64) {
             player::send_key_input(vk, scan_code, KEYEVENTF_SCANCODE);
             player::send_key_input(vk, scan_code, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP);
 
-            println!("[RaniTask] Pet cycle: hide/call sent.");
+            println!("[Ranify2] Pet cycle: hide/call sent.");
         }
 
-        println!("[RaniTask] Pet cycle stopped.");
+        println!("[Ranify2] Pet cycle stopped.");
         ACTIVE.store(false, Ordering::Release);
     });
 }

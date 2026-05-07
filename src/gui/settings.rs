@@ -29,7 +29,7 @@ pub unsafe fn show_settings_dialog(parent: HWND) {
     let sy = parent_rect.bottom + 4;
 
     let hwnd = register_and_create_dialog(
-        "RaniTaskSettings", "Settings",
+        "Ranify2Settings", "Settings",
         settings_wnd_proc,
         WS_EX_TOOLWINDOW as u32,
         WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
@@ -334,7 +334,7 @@ unsafe extern "system" fn settings_wnd_proc(
                             (*ptr).config.hp_monitor_color = SAMPLED_COLOR.load(Ordering::Acquire);
 
                             if let Err(e) = config::save_config(&(*ptr).config) {
-                                eprintln!("[RaniTask] Config save failed: {}", e);
+                                eprintln!("[Ranify2] Config save failed: {}", e);
                             }
                         }
                         DestroyWindow(hwnd);

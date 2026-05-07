@@ -1,12 +1,12 @@
-; RaniTask Inno Setup Installer Script
+; Ranify2 Inno Setup Installer Script
 
-#define MyAppName "RaniTask"
+#define MyAppName "Ranify2"
 #define MyAppVersion "0.1.0"
-#define MyAppPublisher "RaniTask"
-#define MyAppExeName "ranitask.exe"
+#define MyAppPublisher "Ranify2"
+#define MyAppExeName "ranify2.exe"
 
 [Setup]
-AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
+AppId={{01E74434-7C24-422E-9BD4-DCD4E0BDC2DB}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -14,7 +14,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=Output
-OutputBaseFilename=RaniTaskSetup
+OutputBaseFilename=Ranify2Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -23,8 +23,8 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
-; Uncomment the line below after adding assets/ranitask.ico
-; SetupIconFile=..\assets\ranitask.ico
+; Uncomment the line below after adding assets/ranify2.ico
+; SetupIconFile=..\assets\ranify2.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

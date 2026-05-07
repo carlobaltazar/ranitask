@@ -24,7 +24,7 @@ pub unsafe fn show_set_group_dialog(parent: HWND) {
     let sy = parent_rect.top + 150;
 
     let hwnd = register_and_create_dialog(
-        "RaniTaskSetGroupDialog", "Set Group",
+        "Ranify2GroupDialog", "Set Group",
         set_group_wnd_proc,
         WS_EX_TOOLWINDOW as u32,
         WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
@@ -113,12 +113,12 @@ unsafe extern "system" fn set_group_wnd_proc(
                         Ok(mut seq) => {
                             seq.group = if new_group.is_empty() { None } else { Some(new_group) };
                             if let Err(e) = storage::save_sequence(&seq) {
-                                eprintln!("[RaniTask] Failed to save group: {}", e);
+                                eprintln!("[Ranify2] Failed to save group: {}", e);
                             }
                             sequences::refresh_sequences_list();
                         }
                         Err(e) => {
-                            eprintln!("[RaniTask] Failed to load sequence for group update: {}", e);
+                            eprintln!("[Ranify2] Failed to load sequence for group update: {}", e);
                         }
                     }
                 }

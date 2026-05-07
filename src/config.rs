@@ -73,9 +73,9 @@ impl Default for AppConfig {
 
 fn config_path() -> PathBuf {
     let base = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
-    let dir = base.join("ranitask");
+    let dir = base.join("ranify2");
     if let Err(e) = fs::create_dir_all(&dir) {
-        eprintln!("[RaniTask] Failed to create config dir: {}", e);
+        eprintln!("[Ranify2] Failed to create config dir: {}", e);
     }
     dir.join("config.json")
 }

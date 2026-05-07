@@ -52,7 +52,7 @@ pub fn start_recording() {
         KB_HOOK.store(kb as isize, Ordering::Release);
     }
 
-    println!("[RaniTask] Recording started... Press F8 to stop.");
+    println!("[Ranify2] Recording started... Press F8 to stop.");
 }
 
 pub fn stop_recording() -> Option<Vec<InputEvent>> {
@@ -77,7 +77,7 @@ pub fn stop_recording() -> Option<Vec<InputEvent>> {
             0
         };
         println!(
-            "[RaniTask] Recording stopped. {} events captured ({} ms)",
+            "[Ranify2] Recording stopped. {} events captured ({} ms)",
             count, duration_ms
         );
         Some(state.events)

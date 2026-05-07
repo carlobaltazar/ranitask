@@ -6,14 +6,14 @@ fn main() {
     }
 
     let mut res = winres::WindowsResource::new();
-    res.set_manifest_file("assets/ranitask.manifest");
+    res.set_manifest_file("assets/ranify2.manifest");
 
-    if std::path::Path::new("assets/ranitask.ico").exists() {
-        res.set_icon("assets/ranitask.ico");
+    if std::path::Path::new("assets/ranify2.ico").exists() {
+        res.set_icon("assets/ranify2.ico");
     }
 
-    res.set("ProductName", "RaniTask");
-    res.set("FileDescription", "RaniTask - Input Sequence Recorder");
+    res.set("ProductName", "Ranify2");
+    res.set("FileDescription", "Ranify2");
     res.set("LegalCopyright", "Copyright (c) 2026");
     res.set_version_info(winres::VersionInfo::PRODUCTVERSION, 0x0001_0000_0000_0000);
     res.set_version_info(winres::VersionInfo::FILEVERSION, 0x0001_0000_0000_0000);

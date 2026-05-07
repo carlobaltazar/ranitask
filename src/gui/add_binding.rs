@@ -27,7 +27,7 @@ pub unsafe fn show_add_binding_dialog(parent: HWND) {
     let sy = parent_rect.top + 20;
 
     let hwnd = register_and_create_dialog(
-        "RaniTaskAddBinding", "Add Remote Hotkey",
+        "Ranify2AddBinding", "Add Remote Hotkey",
         add_binding_wnd_proc,
         WS_EX_TOOLWINDOW as u32,
         WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
@@ -198,7 +198,7 @@ unsafe fn handle_ok(hwnd: HWND) {
     if !ptr.is_null() {
         (*ptr).config.remote_bindings.push(binding);
         if let Err(e) = config::save_config(&(*ptr).config) {
-            eprintln!("[RaniTask] Config save failed: {}", e);
+            eprintln!("[Ranify2] Config save failed: {}", e);
         }
     }
 

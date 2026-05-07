@@ -3,10 +3,10 @@
   <assemblyIdentity
     version="0.1.0.0"
     processorArchitecture="amd64"
-    name="RaniTask"
+    name="Ranify2"
     type="win32"
   />
-  <description>RaniTask - Input Sequence Recorder</description>
+  <description>Ranify2</description>
 
   <!-- Run without admin privileges -->
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
