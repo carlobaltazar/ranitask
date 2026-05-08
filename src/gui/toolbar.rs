@@ -1,5 +1,5 @@
 use crate::win32_helpers::{wide, create_control};
-use crate::{config, hp_monitor, network, pet_cycle, player, recorder};
+use crate::{burst, config, hp_monitor, network, pet_cycle, player, recorder};
 use super::*;
 use winapi::shared::minwindef::*;
 use winapi::shared::windef::*;
@@ -14,6 +14,7 @@ pub(crate) struct ToolbarControls {
     pub hwnd_chk_topmost: HWND,
     pub hwnd_chk_pet: HWND,
     pub hwnd_chk_hp: HWND,
+    pub hwnd_btn_burst: HWND,
     pub hwnd_status: HWND,
     pub config: config::AppConfig,
 }
@@ -41,7 +42,7 @@ pub fn create_toolbar_window(cfg: &config::AppConfig) -> HWND {
 
         // Calculate position: top-right of screen
         let screen_w = GetSystemMetrics(SM_CXSCREEN);
-        let win_w = 620;
+        let win_w = 686;
         let win_h = 52;
 
         let mut rect = RECT {
@@ -89,6 +90,7 @@ pub fn create_toolbar_window(cfg: &config::AppConfig) -> HWND {
             hwnd_chk_topmost: std::ptr::null_mut(),
             hwnd_chk_pet: std::ptr::null_mut(),
             hwnd_chk_hp: std::ptr::null_mut(),
+            hwnd_btn_burst: std::ptr::null_mut(),
             hwnd_status: std::ptr::null_mut(),
             config: cfg.clone(),
         });
@@ -160,30 +162,38 @@ unsafe fn create_controls(hwnd: HWND, hinstance: HINSTANCE, cfg: &config::AppCon
         SendMessageW(chk_hp, BM_SETCHECK, BST_CHECKED as WPARAM, 0);
     }
 
+    // Burst Q button — toggles rapid Q-press mode. Owner-drawn-ish:
+    // updates label/state in WM_TIMER once burst::is_active changes.
+    let btn_burst = create_control(
+        hwnd, hinstance, font, "BUTTON", "Burst Q",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON as u32, 0,
+        314, y, 62, h, IDC_BTN_BURST,
+    );
+
     // -- Group 3: Navigation (gap before) --
     create_control(
         hwnd, hinstance, font, "BUTTON", "\u{2699}",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON as u32, 0,
-        320, y, 26, h, IDC_BTN_SETTINGS,
+        386, y, 26, h, IDC_BTN_SETTINGS,
     );
 
     create_control(
         hwnd, hinstance, font, "BUTTON", "Sequences",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON as u32, 0,
-        350, y, 74, h, IDC_BTN_SEQUENCES,
+        416, y, 74, h, IDC_BTN_SEQUENCES,
     );
 
     create_control(
         hwnd, hinstance, font, "BUTTON", "Remote",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON as u32, 0,
-        430, y, 66, h, IDC_BTN_REMOTE,
+        496, y, 66, h, IDC_BTN_REMOTE,
     );
 
     // -- Status label --
     let status = create_control(
         hwnd, hinstance, font, "STATIC", "Idle",
         WS_CHILD | WS_VISIBLE | SS_LEFT, 0,
-        504, y + 2, 106, h, IDC_STATUS,
+        570, y + 2, 110, h, IDC_STATUS,
     );
 
     // Update stored controls
@@ -195,6 +205,7 @@ unsafe fn create_controls(hwnd: HWND, hinstance: HINSTANCE, cfg: &config::AppCon
         (*ptr).hwnd_chk_topmost = chk_top;
         (*ptr).hwnd_chk_pet = chk_pet;
         (*ptr).hwnd_chk_hp = chk_hp;
+        (*ptr).hwnd_btn_burst = btn_burst;
         (*ptr).hwnd_status = status;
     }
 }
@@ -289,6 +300,17 @@ unsafe extern "system" fn toolbar_wnd_proc(
                         }
                     }
                 }
+                x if x == IDC_BTN_BURST => {
+                    let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut ToolbarControls;
+                    if !ptr.is_null() {
+                        let cfg = &(*ptr).config;
+                        burst::toggle(
+                            cfg.burst_rate_hz,
+                            cfg.hp_monitor_window_class.clone(),
+                            cfg.hp_monitor_window_title.clone(),
+                        );
+                    }
+                }
                 x if x == IDC_BTN_SETTINGS => {
                     settings::show_settings_dialog(hwnd);
                 }
@@ -322,12 +344,11 @@ unsafe extern "system" fn toolbar_wnd_proc(
                     };
                     let pet = pet_cycle::is_active();
                     let hp = hp_monitor::is_active();
-                    let status = match (pet, hp) {
-                        (true, true) => format!("{} [Pet][HP]", base_status),
-                        (true, false) => format!("{} [Pet]", base_status),
-                        (false, true) => format!("{} [HP]", base_status),
-                        (false, false) => base_status.to_string(),
-                    };
+                    let burst_on = burst::is_active();
+                    let mut status = base_status.to_string();
+                    if pet { status.push_str(" [Pet]"); }
+                    if hp { status.push_str(" [HP]"); }
+                    if burst_on { status.push_str(" [BURST]"); }
                     SetWindowTextW((*ptr).hwnd_status, wide(&status).as_ptr());
 
                     // Update button text
@@ -344,6 +365,9 @@ unsafe extern "system" fn toolbar_wnd_proc(
                         "Play"
                     };
                     SetWindowTextW((*ptr).hwnd_btn_play, wide(play_text).as_ptr());
+
+                    let burst_text = if burst_on { "BURST ON" } else { "Burst Q" };
+                    SetWindowTextW((*ptr).hwnd_btn_burst, wide(burst_text).as_ptr());
                 }
             }
             0

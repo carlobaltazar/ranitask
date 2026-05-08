@@ -141,7 +141,7 @@ pub fn stop() {
     }
 }
 
-unsafe fn find_window_matching(class_ptr: *const u16, title_prefix: &str) -> HWND {
+pub(crate) unsafe fn find_window_matching(class_ptr: *const u16, title_prefix: &str) -> HWND {
     if title_prefix.is_empty() {
         return FindWindowW(class_ptr, std::ptr::null());
     }

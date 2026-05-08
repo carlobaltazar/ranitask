@@ -1,5 +1,5 @@
-use crate::win32_helpers::{wide, create_control, register_and_create_dialog, populate_key_combo, lock_or_recover, KEY_OPTIONS};
-use crate::{config, hotkeys};
+use crate::win32_helpers::{wide, create_control, register_and_create_dialog, populate_key_combo, lock_or_recover, BURST_KEY_OPTIONS, KEY_OPTIONS};
+use crate::{burst, config, hotkeys};
 use super::*;
 use super::toolbar::ToolbarControls;
 use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering};
@@ -38,7 +38,7 @@ pub unsafe fn show_settings_dialog(parent: HWND) {
         settings_wnd_proc,
         WS_EX_TOOLWINDOW as u32,
         WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
-        sx, sy, 300, 340,
+        sx, sy, 300, 416,
         parent, hinstance,
     );
     SETTINGS_HWND.store(hwnd as isize, Ordering::Release);
@@ -205,11 +205,71 @@ unsafe extern "system" fn settings_wnd_proc(
                 *lock_or_recover(&SAMPLED_TITLE) = cfg.hp_monitor_window_title.clone();
             }
 
+            // -- Burst Q section --
+            create_control(
+                hwnd, hinstance, font, "STATIC", "— Burst Q —",
+                WS_CHILD | WS_VISIBLE | SS_CENTER, 0,
+                12, 244, 272, 18, 0,
+            );
+
+            // Hotkey label + combobox
+            create_control(
+                hwnd, hinstance, font, "STATIC", "Hotkey:",
+                WS_CHILD | WS_VISIBLE | SS_LEFT, 0,
+                12, 272, 50, 20, 0,
+            );
+            create_control(
+                hwnd, hinstance, font, "COMBOBOX", "",
+                WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST as u32 | WS_VSCROLL, 0,
+                66, 268, 130, 200, IDC_COMBO_BURST_KEY,
+            );
+
+            let h_combo_burst = GetDlgItem(hwnd, IDC_COMBO_BURST_KEY as i32);
+            let none_text = wide("(None)");
+            SendMessageW(h_combo_burst, CB_ADDSTRING, 0, none_text.as_ptr() as LPARAM);
+            let current_burst_vk = hotkeys::current_burst_vk();
+            if current_burst_vk.is_none() {
+                SendMessageW(h_combo_burst, CB_SETCURSEL, 0, 0);
+            }
+            for (i, (vk, name)) in BURST_KEY_OPTIONS.iter().enumerate() {
+                let wname = wide(name);
+                SendMessageW(h_combo_burst, CB_ADDSTRING, 0, wname.as_ptr() as LPARAM);
+                if current_burst_vk == Some(*vk) {
+                    SendMessageW(h_combo_burst, CB_SETCURSEL, (i + 1) as WPARAM, 0);
+                }
+            }
+
+            // Rate label + edit (Hz)
+            create_control(
+                hwnd, hinstance, font, "STATIC", "Rate (Hz):",
+                WS_CHILD | WS_VISIBLE | SS_LEFT, 0,
+                12, 304, 60, 20, 0,
+            );
+            create_control(
+                hwnd, hinstance, font, "EDIT", "",
+                WS_CHILD | WS_VISIBLE | WS_BORDER | ES_NUMBER as u32, 0,
+                76, 300, 60, 22, IDC_EDIT_BURST_RATE,
+            );
+            create_control(
+                hwnd, hinstance, font, "STATIC", "(50-200, default 100)",
+                WS_CHILD | WS_VISIBLE | SS_LEFT, 0,
+                144, 304, 140, 20, 0,
+            );
+
+            // Pre-populate burst rate from config
+            let parent2 = GetParent(hwnd);
+            let parent2_ptr = GetWindowLongPtrW(parent2, GWLP_USERDATA) as *mut ToolbarControls;
+            if !parent2_ptr.is_null() {
+                let cfg = &(*parent2_ptr).config;
+                let rate_text = wide(&cfg.burst_rate_hz.to_string());
+                SetWindowTextW(GetDlgItem(hwnd, IDC_EDIT_BURST_RATE as i32), rate_text.as_ptr());
+            }
+
             // OK button
             create_control(
                 hwnd, hinstance, font, "BUTTON", "OK",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON as u32, 0,
-                115, 252, 70, 28, IDC_BTN_SETTINGS_OK,
+                115, 340, 70, 28, IDC_BTN_SETTINGS_OK,
             );
 
             0
@@ -359,8 +419,38 @@ unsafe extern "system" fn settings_wnd_proc(
                         }
                     }
 
+                    // Read burst hotkey selection
+                    let h_combo_burst = GetDlgItem(hwnd, IDC_COMBO_BURST_KEY as i32);
+                    let burst_idx = SendMessageW(h_combo_burst, CB_GETCURSEL, 0, 0) as usize;
+                    let new_burst_vk: Option<u16> = if burst_idx == 0 {
+                        None
+                    } else if burst_idx - 1 < BURST_KEY_OPTIONS.len() {
+                        Some(BURST_KEY_OPTIONS[burst_idx - 1].0)
+                    } else {
+                        None
+                    };
+
+                    if let Some(bvk) = new_burst_vk {
+                        if bvk == new_rec_vk || bvk == new_stop_vk
+                            || new_queue_vk == Some(bvk)
+                        {
+                            let msg = wide("Burst hotkey must be different from Record, Stop, and Queue keys!");
+                            let title = wide("Error");
+                            MessageBoxW(hwnd, msg.as_ptr(), title.as_ptr(), MB_OK | MB_ICONERROR);
+                            return 0;
+                        }
+                    }
+
+                    // Read burst rate
+                    let mut buf_rate = [0u16; 16];
+                    GetWindowTextW(GetDlgItem(hwnd, IDC_EDIT_BURST_RATE as i32), buf_rate.as_mut_ptr(), 16);
+                    let rate_str: String = buf_rate.iter().take_while(|&&c| c != 0).map(|&c| c as u8 as char).collect();
+                    let new_burst_rate: u32 = rate_str.parse().unwrap_or(100);
+                    let new_burst_rate = new_burst_rate.clamp(50, 200);
+
                     if hotkeys::reregister_hotkeys(new_rec_vk, new_stop_vk) {
                         hotkeys::set_queue_vk(new_queue_vk);
+                        hotkeys::set_burst_vk(new_burst_vk);
                         let parent = GetParent(hwnd);
                         let ptr =
                             GetWindowLongPtrW(parent, GWLP_USERDATA) as *mut ToolbarControls;
@@ -368,6 +458,8 @@ unsafe extern "system" fn settings_wnd_proc(
                             (*ptr).config.record_vk = new_rec_vk;
                             (*ptr).config.stop_vk = new_stop_vk;
                             (*ptr).config.queue_vk = new_queue_vk;
+                            (*ptr).config.burst_vk = new_burst_vk.unwrap_or(0);
+                            (*ptr).config.burst_rate_hz = new_burst_rate;
 
                             // Save HP monitor settings
                             let mut buf_x = [0u16; 16];
@@ -388,6 +480,10 @@ unsafe extern "system" fn settings_wnd_proc(
                                 eprintln!("[Ranify2] Config save failed: {}", e);
                             }
                         }
+                        // If burst was running and the user changed the rate,
+                        // the change takes effect on next toggle. Mention this
+                        // visually only if needed — for now, keep existing burst.
+                        let _ = burst::is_active();
                         DestroyWindow(hwnd);
                         SETTINGS_HWND.store(0, Ordering::Release);
                     } else {

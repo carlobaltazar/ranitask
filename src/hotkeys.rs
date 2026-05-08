@@ -9,6 +9,7 @@ use winapi::um::winuser::*;
 pub const HOTKEY_TOGGLE_RECORD: i32 = 1;
 pub const HOTKEY_PLAY_STOP: i32 = 2;
 pub const HOTKEY_PLAY_QUEUE: i32 = 3;
+pub const HOTKEY_BURST_TOGGLE: i32 = 4;
 pub const HOTKEY_PLAY_SEQUENCE: i32 = 100;
 pub const HOTKEY_REMOTE_SEND: i32 = 200;
 
@@ -24,6 +25,7 @@ struct HotkeySet {
     record_vk: u16,
     stop_vk: u16,
     queue_vk: Option<u16>,
+    burst_vk: Option<u16>,
     sequence_bindings: Vec<(u16, String)>, // (vk_code, sequence_name)
     remote_bindings: Vec<(u32, u16, String)>, // (modifiers, vk_code, sequence_name)
 }
@@ -39,6 +41,7 @@ fn ensure_hotkeys() {
             record_vk: config::DEFAULT_RECORD_VK,
             stop_vk: config::DEFAULT_STOP_VK,
             queue_vk: None,
+            burst_vk: None,
             sequence_bindings: Vec::new(),
             remote_bindings: Vec::new(),
         });
@@ -54,6 +57,7 @@ pub fn install_hook(record_vk: u16, stop_vk: u16) -> bool {
             record_vk,
             stop_vk,
             queue_vk: None,
+            burst_vk: None,
             sequence_bindings: Vec::new(),
             remote_bindings: Vec::new(),
         });
@@ -117,6 +121,21 @@ pub fn current_queue_vk() -> Option<u16> {
     set.queue_vk
 }
 
+pub fn set_burst_vk(vk: Option<u16>) {
+    ensure_hotkeys();
+    let mut hk = lock_or_recover(&CURRENT_HOTKEYS);
+    if let Some(ref mut set) = *hk {
+        set.burst_vk = vk;
+    }
+}
+
+pub fn current_burst_vk() -> Option<u16> {
+    ensure_hotkeys();
+    let hk = lock_or_recover(&CURRENT_HOTKEYS);
+    let set = hk.as_ref().unwrap();
+    set.burst_vk
+}
+
 /// Rebuild sequence bindings from loaded sequences.
 pub fn set_sequence_bindings(bindings: Vec<(u16, String)>) {
     ensure_hotkeys();
@@ -162,6 +181,9 @@ pub fn all_hotkey_vks() -> Vec<u16> {
     let mut vks = vec![set.record_vk, set.stop_vk];
     if let Some(qvk) = set.queue_vk {
         vks.push(qvk);
+    }
+    if let Some(bvk) = set.burst_vk {
+        vks.push(bvk);
     }
     for (vk, _) in &set.sequence_bindings {
         vks.push(*vk);
@@ -238,6 +260,8 @@ unsafe extern "system" fn hotkey_hook_proc(
                     PostThreadMessageW(thread_id, WM_APP_HOTKEY, HOTKEY_PLAY_STOP as WPARAM, 0);
                 } else if set.queue_vk == Some(vk) {
                     PostThreadMessageW(thread_id, WM_APP_HOTKEY, HOTKEY_PLAY_QUEUE as WPARAM, 0);
+                } else if set.burst_vk == Some(vk) {
+                    PostThreadMessageW(thread_id, WM_APP_HOTKEY, HOTKEY_BURST_TOGGLE as WPARAM, 0);
                 } else {
                     for (bound_vk, _) in &set.sequence_bindings {
                         if vk == *bound_vk {

@@ -46,6 +46,7 @@ pub(crate) const IDC_BTN_SEQUENCES: u16 = 107;
 pub(crate) const IDC_BTN_REMOTE: u16 = 108;
 pub(crate) const IDC_CHK_PET: u16 = 109;
 pub(crate) const IDC_CHK_HP: u16 = 110;
+pub(crate) const IDC_BTN_BURST: u16 = 111;
 
 // Settings dialog controls
 pub(crate) const IDC_COMBO_RECORD_KEY: u16 = 201;
@@ -58,6 +59,8 @@ pub(crate) const IDC_BTN_HP_SAMPLE: u16 = 207;
 pub(crate) const IDC_STATIC_HP_COLOR: u16 = 208;
 pub(crate) const IDC_BTN_HP_PICK: u16 = 209;
 pub(crate) const IDC_STATIC_HP_LIVE: u16 = 210;
+pub(crate) const IDC_COMBO_BURST_KEY: u16 = 211;
+pub(crate) const IDC_EDIT_BURST_RATE: u16 = 212;
 
 // Save dialog controls
 pub(crate) const IDC_EDIT_SEQ_NAME: u16 = 301;

@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod burst;
 mod config;
 mod gui;
 mod hotkeys;
@@ -13,7 +14,12 @@ mod storage;
 mod timing;
 mod win32_helpers;
 
+use winapi::shared::minwindef::TRUE;
 use winapi::um::winuser::*;
+
+// Custom message posted by the burst worker to the main thread when it stops
+// on its own (focus lost, app exit). Lets the toolbar refresh its visual.
+pub const WM_APP_BURST_STOPPED: u32 = WM_APP + 2;
 
 fn main() {
     // Belt-and-suspenders DPI awareness. The manifest already declares
@@ -85,6 +91,16 @@ fn main() {
         hotkeys::set_queue_vk(Some(qvk));
     }
 
+    // Load burst hotkey binding (None until configured)
+    if cfg.burst_vk != 0 {
+        hotkeys::set_burst_vk(Some(cfg.burst_vk));
+    }
+
+    // Wire the burst worker so it can wake the UI when it stops itself
+    // (focus loss). Use the main thread ID we already store in hotkeys.
+    let main_tid = unsafe { winapi::um::processthreadsapi::GetCurrentThreadId() };
+    burst::set_notify(main_tid, WM_APP_BURST_STOPPED);
+
     // Auto-start receiver if configured
     if cfg.remote_auto_listen && cfg.remote_port > 0 {
         let password = if cfg.remote_password.is_empty() {
@@ -130,6 +146,20 @@ fn main() {
             break;
         }
 
+        // Handle burst worker stop notification (focus loss / shutdown).
+        if msg.message == WM_APP_BURST_STOPPED {
+            unsafe {
+                let toplevel = FindWindowW(
+                    win32_helpers::wide("Ranify2Main").as_ptr(),
+                    std::ptr::null(),
+                );
+                if !toplevel.is_null() {
+                    InvalidateRect(toplevel, std::ptr::null(), TRUE);
+                }
+            }
+            continue;
+        }
+
         // Handle hotkey messages from our low-level hook
         if msg.message == hotkeys::WM_APP_HOTKEY {
             let hotkey_id = msg.wParam as i32;
@@ -137,6 +167,14 @@ fn main() {
                 hotkeys::HOTKEY_TOGGLE_RECORD => gui::handle_record_toggle(),
                 hotkeys::HOTKEY_PLAY_STOP => gui::handle_play_toggle(),
                 hotkeys::HOTKEY_PLAY_QUEUE => gui::handle_play_queue_hotkey(),
+                hotkeys::HOTKEY_BURST_TOGGLE => {
+                    let cfg = config::load_config();
+                    burst::toggle(
+                        cfg.burst_rate_hz,
+                        cfg.hp_monitor_window_class.clone(),
+                        cfg.hp_monitor_window_title.clone(),
+                    );
+                }
                 hotkeys::HOTKEY_PLAY_SEQUENCE => {
                     let vk = msg.lParam as u16;
                     gui::handle_play_sequence(vk);
@@ -177,6 +215,7 @@ fn main() {
     }
 
     // Cleanup
+    burst::stop();
     hp_monitor::stop();
     pet_cycle::stop();
     network::stop_listener();

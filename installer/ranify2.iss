@@ -1,7 +1,7 @@
 ; Ranify2 Inno Setup Installer Script
 
 #define MyAppName "Ranify2"
-#define MyAppVersion "2.0.0"
+#define MyAppVersion "2.1.0"
 #define MyAppPublisher "Ranify2"
 #define MyAppExeName "ranify2.exe"
 

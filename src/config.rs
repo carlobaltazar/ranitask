@@ -45,10 +45,16 @@ pub struct AppConfig {
     pub hp_monitor_window_class: String,
     #[serde(default)]
     pub hp_monitor_window_title: String,
+    #[serde(default = "default_burst_rate_hz")]
+    pub burst_rate_hz: u32,
+    #[serde(default = "default_burst_vk")]
+    pub burst_vk: u16,
 }
 
 fn default_remote_port() -> u16 { 9847 }
 fn default_pet_cycle_interval() -> u64 { 120 }
+fn default_burst_rate_hz() -> u32 { 100 }
+fn default_burst_vk() -> u16 { 0x14 } // Caps Lock
 
 impl Default for AppConfig {
     fn default() -> Self {
@@ -73,6 +79,8 @@ impl Default for AppConfig {
             hp_monitor_color: 0,
             hp_monitor_window_class: String::new(),
             hp_monitor_window_title: String::new(),
+            burst_rate_hz: default_burst_rate_hz(),
+            burst_vk: default_burst_vk(),
         }
     }
 }

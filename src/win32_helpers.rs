@@ -51,6 +51,31 @@ pub fn vk_name(vk: u16) -> &'static str {
         .unwrap_or("?")
 }
 
+/// Key options for the Burst Q hotkey. Excludes A-Z so a user can't bind it
+/// to a key the game itself uses for skills/movement.
+pub const BURST_KEY_OPTIONS: &[(u16, &str)] = &[
+    (0x14, "CapsLock"),
+    (0x2D, "Insert"),
+    (0x24, "Home"),
+    (0x23, "End"),
+    (0x21, "PageUp"),
+    (0x22, "PageDown"),
+    (0x13, "Pause"),
+    (0x91, "ScrollLock"),
+    (0x70, "F1"),
+    (0x71, "F2"),
+    (0x72, "F3"),
+    (0x73, "F4"),
+    (0x74, "F5"),
+    (0x75, "F6"),
+    (0x76, "F7"),
+    (0x77, "F8"),
+    (0x78, "F9"),
+    (0x79, "F10"),
+    (0x7A, "F11"),
+    (0x7B, "F12"),
+];
+
 /// Extended key options for remote hotkey bindings (A-Z, 0-9, F1-F12).
 pub const REMOTE_KEY_OPTIONS: &[(u16, &str)] = &[
     (0x41, "A"), (0x42, "B"), (0x43, "C"), (0x44, "D"), (0x45, "E"),
