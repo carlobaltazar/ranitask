@@ -16,6 +16,29 @@ mod win32_helpers;
 use winapi::um::winuser::*;
 
 fn main() {
+    // Belt-and-suspenders DPI awareness. The manifest already declares
+    // PerMonitorV2, but if it didn't embed (broken build env) the process
+    // would fall back to DPI-unaware and HP-monitor pixel coords would
+    // silently desync from the picker on >100% scaling. Resolved dynamically
+    // because winapi 0.3 doesn't expose SetProcessDpiAwarenessContext.
+    unsafe {
+        let lib = winapi::um::libloaderapi::LoadLibraryW(
+            win32_helpers::wide("user32.dll").as_ptr(),
+        );
+        if !lib.is_null() {
+            let name = b"SetProcessDpiAwarenessContext\0";
+            let proc_addr = winapi::um::libloaderapi::GetProcAddress(
+                lib,
+                name.as_ptr() as *const i8,
+            );
+            if !proc_addr.is_null() {
+                type SetCtx = unsafe extern "system" fn(isize) -> i32;
+                let f: SetCtx = std::mem::transmute(proc_addr);
+                let _ = f(-4); // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+            }
+        }
+    }
+
     // Load config
     let cfg = config::load_config();
 
@@ -81,7 +104,13 @@ fn main() {
 
     // Auto-start HP monitor if configured
     if cfg.hp_monitor_enabled && cfg.hp_monitor_color != 0 {
-        hp_monitor::start(cfg.hp_monitor_x, cfg.hp_monitor_y, cfg.hp_monitor_color);
+        hp_monitor::start(
+            cfg.hp_monitor_window_class.clone(),
+            cfg.hp_monitor_window_title.clone(),
+            cfg.hp_monitor_x,
+            cfg.hp_monitor_y,
+            cfg.hp_monitor_color,
+        );
     }
 
     // Load default sequence (or fall back to last saved) into LAST_EVENTS

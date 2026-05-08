@@ -18,12 +18,10 @@ fn main() {
     res.set_version_info(winres::VersionInfo::PRODUCTVERSION, 0x0001_0000_0000_0000);
     res.set_version_info(winres::VersionInfo::FILEVERSION, 0x0001_0000_0000_0000);
 
-    match res.compile() {
-        Ok(_) => {}
-        Err(e) => {
-            // Print warning but don't fail the build — resources are optional
-            println!("cargo:warning=Could not embed Windows resources: {e}");
-            println!("cargo:warning=Install MinGW (windres) or Windows SDK (rc.exe) to embed icon/manifest.");
-        }
-    }
+    res.compile().expect(
+        "Failed to embed Windows resources. \
+         The manifest is required for Per-Monitor V2 DPI awareness — without it, \
+         HP-monitor pixel sampling silently breaks on >100% display scaling. \
+         Install MinGW (windres) or the Windows SDK (rc.exe) and rebuild.",
+    );
 }

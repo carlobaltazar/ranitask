@@ -1,15 +1,20 @@
-use crate::win32_helpers::{wide, create_control, register_and_create_dialog, populate_key_combo, KEY_OPTIONS};
+use crate::win32_helpers::{wide, create_control, register_and_create_dialog, populate_key_combo, lock_or_recover, KEY_OPTIONS};
 use crate::{config, hotkeys};
 use super::*;
 use super::toolbar::ToolbarControls;
 use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering};
+use std::sync::Mutex;
 use winapi::shared::minwindef::*;
 use winapi::shared::windef::*;
 use winapi::um::wingdi::*;
 use winapi::um::winuser::*;
 
+const GA_ROOT: u32 = 2;
+
 static SETTINGS_HWND: AtomicIsize = AtomicIsize::new(0);
 static SAMPLED_COLOR: AtomicU32 = AtomicU32::new(0);
+static SAMPLED_CLASS: Mutex<String> = Mutex::new(String::new());
+static SAMPLED_TITLE: Mutex<String> = Mutex::new(String::new());
 static PICKING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 pub unsafe fn show_settings_dialog(parent: HWND) {
@@ -196,6 +201,8 @@ unsafe extern "system" fn settings_wnd_proc(
                 } else {
                     SAMPLED_COLOR.store(0, Ordering::Release);
                 }
+                *lock_or_recover(&SAMPLED_CLASS) = cfg.hp_monitor_window_class.clone();
+                *lock_or_recover(&SAMPLED_TITLE) = cfg.hp_monitor_window_title.clone();
             }
 
             // OK button
@@ -240,21 +247,61 @@ unsafe extern "system" fn settings_wnd_proc(
                 let y_str: String = buf_y.iter().take_while(|&&c| c != 0).map(|&c| c as u8 as char).collect();
 
                 if let (Ok(x), Ok(y)) = (x_str.parse::<i32>(), y_str.parse::<i32>()) {
-                    let hdc = GetDC(std::ptr::null_mut());
-                    if !hdc.is_null() {
-                        let color = GetPixel(hdc, x, y);
-                        ReleaseDC(std::ptr::null_mut(), hdc);
+                    let class = lock_or_recover(&SAMPLED_CLASS).clone();
+                    let title = lock_or_recover(&SAMPLED_TITLE).clone();
 
-                        if color != 0xFFFFFFFF {
-                            SAMPLED_COLOR.store(color, Ordering::Release);
-                            let r = color & 0xFF;
-                            let g = (color >> 8) & 0xFF;
-                            let b = (color >> 16) & 0xFF;
-                            let text = wide(&format!("R:{} G:{} B:{}", r, g, b));
-                            SetWindowTextW(GetDlgItem(hwnd, IDC_STATIC_HP_COLOR as i32), text.as_ptr());
-                        } else {
-                            let text = wide("(invalid pixel)");
-                            SetWindowTextW(GetDlgItem(hwnd, IDC_STATIC_HP_COLOR as i32), text.as_ptr());
+                    let (sample_hwnd, sample_x, sample_y) = if class.is_empty() {
+                        (std::ptr::null_mut(), x, y)
+                    } else {
+                        let class_w = wide(&class);
+                        let mut found: HWND = FindWindowExW(
+                            std::ptr::null_mut(),
+                            std::ptr::null_mut(),
+                            class_w.as_ptr(),
+                            std::ptr::null(),
+                        );
+                        if !title.is_empty() {
+                            while !found.is_null() {
+                                let mut buf = [0u16; 256];
+                                let len = GetWindowTextW(found, buf.as_mut_ptr(), buf.len() as i32) as usize;
+                                let actual = String::from_utf16_lossy(&buf[..len]);
+                                if actual.starts_with(&title) {
+                                    break;
+                                }
+                                found = FindWindowExW(
+                                    std::ptr::null_mut(),
+                                    found,
+                                    class_w.as_ptr(),
+                                    std::ptr::null(),
+                                );
+                            }
+                            if found.is_null() {
+                                found = FindWindowW(class_w.as_ptr(), std::ptr::null());
+                            }
+                        }
+                        (found, x, y)
+                    };
+
+                    if !class.is_empty() && sample_hwnd.is_null() {
+                        let text = wide("(target window not found)");
+                        SetWindowTextW(GetDlgItem(hwnd, IDC_STATIC_HP_COLOR as i32), text.as_ptr());
+                    } else {
+                        let hdc = GetDC(sample_hwnd);
+                        if !hdc.is_null() {
+                            let color = GetPixel(hdc, sample_x, sample_y);
+                            ReleaseDC(sample_hwnd, hdc);
+
+                            if color != 0xFFFFFFFF {
+                                SAMPLED_COLOR.store(color, Ordering::Release);
+                                let r = color & 0xFF;
+                                let g = (color >> 8) & 0xFF;
+                                let b = (color >> 16) & 0xFF;
+                                let text = wide(&format!("R:{} G:{} B:{}", r, g, b));
+                                SetWindowTextW(GetDlgItem(hwnd, IDC_STATIC_HP_COLOR as i32), text.as_ptr());
+                            } else {
+                                let text = wide("(invalid pixel)");
+                                SetWindowTextW(GetDlgItem(hwnd, IDC_STATIC_HP_COLOR as i32), text.as_ptr());
+                            }
                         }
                     }
                 } else {
@@ -332,6 +379,10 @@ unsafe extern "system" fn settings_wnd_proc(
                             (*ptr).config.hp_monitor_x = x_str.parse().unwrap_or(0);
                             (*ptr).config.hp_monitor_y = y_str.parse().unwrap_or(0);
                             (*ptr).config.hp_monitor_color = SAMPLED_COLOR.load(Ordering::Acquire);
+                            (*ptr).config.hp_monitor_window_class =
+                                lock_or_recover(&SAMPLED_CLASS).clone();
+                            (*ptr).config.hp_monitor_window_title =
+                                lock_or_recover(&SAMPLED_TITLE).clone();
 
                             if let Err(e) = config::save_config(&(*ptr).config) {
                                 eprintln!("[Ranify2] Config save failed: {}", e);
@@ -358,7 +409,32 @@ unsafe extern "system" fn settings_wnd_proc(
                 let mut pt: POINT = std::mem::zeroed();
                 GetCursorPos(&mut pt);
 
-                // Read pixel color at cursor
+                // Resolve the top-level window under the cursor. We anchor the
+                // pixel coords to its client area so that moving the game window
+                // (or relaunching) doesn't invalidate the pick.
+                let raw_under = WindowFromPoint(pt);
+                let top_under = if !raw_under.is_null() {
+                    let t = GetAncestor(raw_under, GA_ROOT);
+                    if t.is_null() { raw_under } else { t }
+                } else {
+                    std::ptr::null_mut()
+                };
+
+                let (under_class, under_title) = if !top_under.is_null() {
+                    let mut cbuf = [0u16; 256];
+                    let clen = GetClassNameW(top_under, cbuf.as_mut_ptr(), cbuf.len() as i32) as usize;
+                    let cls = String::from_utf16_lossy(&cbuf[..clen]);
+                    let mut tbuf = [0u16; 256];
+                    let tlen = GetWindowTextW(top_under, tbuf.as_mut_ptr(), tbuf.len() as i32) as usize;
+                    let ttl = String::from_utf16_lossy(&tbuf[..tlen]);
+                    (cls, ttl)
+                } else {
+                    (String::new(), String::new())
+                };
+
+                // Pixel sampling stays on the desktop DC during preview so the
+                // live readout matches what the user sees regardless of which
+                // window is under the cursor.
                 let hdc = GetDC(std::ptr::null_mut());
                 let color = if !hdc.is_null() {
                     let c = GetPixel(hdc, pt.x, pt.y);
@@ -368,51 +444,79 @@ unsafe extern "system" fn settings_wnd_proc(
                     0xFFFFFFFF
                 };
 
-                // Update live display
+                let win_label = if under_class.is_empty() {
+                    "(no window)".to_string()
+                } else if under_title.is_empty() {
+                    under_class.clone()
+                } else {
+                    format!("{} [{}]", under_title, under_class)
+                };
+
                 if color != 0xFFFFFFFF {
                     let r = color & 0xFF;
                     let g = (color >> 8) & 0xFF;
                     let b = (color >> 16) & 0xFF;
                     let text = wide(&format!(
-                        "X:{} Y:{} | R:{} G:{} B:{}",
-                        pt.x, pt.y, r, g, b
+                        "X:{} Y:{} R:{} G:{} B:{} | {}",
+                        pt.x, pt.y, r, g, b, win_label
                     ));
                     SetWindowTextW(GetDlgItem(hwnd, IDC_STATIC_HP_LIVE as i32), text.as_ptr());
                 } else {
-                    let text = wide(&format!("X:{} Y:{} | (unreadable)", pt.x, pt.y));
+                    let text = wide(&format!(
+                        "X:{} Y:{} (unreadable) | {}",
+                        pt.x, pt.y, win_label
+                    ));
                     SetWindowTextW(GetDlgItem(hwnd, IDC_STATIC_HP_LIVE as i32), text.as_ptr());
                 }
 
-                // Check if INSERT key is pressed to capture
                 let insert_down = GetAsyncKeyState(VK_INSERT) & (0x8000u16 as i16) != 0;
                 if insert_down {
-                    {
-                        // Captured! Fill X/Y fields and sample color
-                        let x_text = wide(&pt.x.to_string());
-                        let y_text = wide(&pt.y.to_string());
-                        SetWindowTextW(GetDlgItem(hwnd, IDC_EDIT_HP_X as i32), x_text.as_ptr());
-                        SetWindowTextW(GetDlgItem(hwnd, IDC_EDIT_HP_Y as i32), y_text.as_ptr());
+                    // Convert the captured screen point into the target window's
+                    // client coords. If we couldn't resolve a top-level window,
+                    // fall back to absolute coords (legacy behavior).
+                    let mut client_pt = pt;
+                    let anchored = !top_under.is_null()
+                        && !under_class.is_empty()
+                        && !under_class.starts_with("Ranify2")
+                        && ScreenToClient(top_under, &mut client_pt) != 0;
 
-                        if color != 0xFFFFFFFF {
-                            SAMPLED_COLOR.store(color, Ordering::Release);
-                            let r = color & 0xFF;
-                            let g = (color >> 8) & 0xFF;
-                            let b = (color >> 16) & 0xFF;
-                            let text = wide(&format!("R:{} G:{} B:{}", r, g, b));
-                            SetWindowTextW(
-                                GetDlgItem(hwnd, IDC_STATIC_HP_COLOR as i32),
-                                text.as_ptr(),
-                            );
-                        }
+                    let (saved_x, saved_y, saved_class, saved_title) = if anchored {
+                        (client_pt.x, client_pt.y, under_class.clone(), under_title.clone())
+                    } else {
+                        (pt.x, pt.y, String::new(), String::new())
+                    };
 
-                        // Stop pick mode
-                        PICKING.store(false, Ordering::Release);
-                        KillTimer(hwnd, TIMER_HP_PICK);
-                        let text = wide("Pick");
-                        SetWindowTextW(GetDlgItem(hwnd, IDC_BTN_HP_PICK as i32), text.as_ptr());
-                        let text = wide("Pixel captured!");
-                        SetWindowTextW(GetDlgItem(hwnd, IDC_STATIC_HP_LIVE as i32), text.as_ptr());
+                    let x_text = wide(&saved_x.to_string());
+                    let y_text = wide(&saved_y.to_string());
+                    SetWindowTextW(GetDlgItem(hwnd, IDC_EDIT_HP_X as i32), x_text.as_ptr());
+                    SetWindowTextW(GetDlgItem(hwnd, IDC_EDIT_HP_Y as i32), y_text.as_ptr());
+
+                    if color != 0xFFFFFFFF {
+                        SAMPLED_COLOR.store(color, Ordering::Release);
+                        let r = color & 0xFF;
+                        let g = (color >> 8) & 0xFF;
+                        let b = (color >> 16) & 0xFF;
+                        let text = wide(&format!("R:{} G:{} B:{}", r, g, b));
+                        SetWindowTextW(
+                            GetDlgItem(hwnd, IDC_STATIC_HP_COLOR as i32),
+                            text.as_ptr(),
+                        );
                     }
+
+                    *lock_or_recover(&SAMPLED_CLASS) = saved_class;
+                    *lock_or_recover(&SAMPLED_TITLE) = saved_title;
+
+                    PICKING.store(false, Ordering::Release);
+                    KillTimer(hwnd, TIMER_HP_PICK);
+                    let text = wide("Pick");
+                    SetWindowTextW(GetDlgItem(hwnd, IDC_BTN_HP_PICK as i32), text.as_ptr());
+                    let captured_msg = if anchored {
+                        format!("Captured: {} ({}, {})", win_label, saved_x, saved_y)
+                    } else {
+                        format!("Captured (legacy absolute): ({}, {})", saved_x, saved_y)
+                    };
+                    let text = wide(&captured_msg);
+                    SetWindowTextW(GetDlgItem(hwnd, IDC_STATIC_HP_LIVE as i32), text.as_ptr());
                 }
             }
             0

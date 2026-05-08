@@ -248,7 +248,13 @@ unsafe extern "system" fn toolbar_wnd_proc(
                         if checked {
                             let cfg = &(*ptr).config;
                             if cfg.hp_monitor_color != 0 {
-                                hp_monitor::start(cfg.hp_monitor_x, cfg.hp_monitor_y, cfg.hp_monitor_color);
+                                hp_monitor::start(
+                                    cfg.hp_monitor_window_class.clone(),
+                                    cfg.hp_monitor_window_title.clone(),
+                                    cfg.hp_monitor_x,
+                                    cfg.hp_monitor_y,
+                                    cfg.hp_monitor_color,
+                                );
                             } else {
                                 let msg = crate::win32_helpers::wide(
                                     "Configure HP pixel in Settings first.\nSet X/Y and click Sample.",

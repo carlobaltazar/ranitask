@@ -41,6 +41,10 @@ pub struct AppConfig {
     pub hp_monitor_y: i32,
     #[serde(default)]
     pub hp_monitor_color: u32,
+    #[serde(default)]
+    pub hp_monitor_window_class: String,
+    #[serde(default)]
+    pub hp_monitor_window_title: String,
 }
 
 fn default_remote_port() -> u16 { 9847 }
@@ -67,6 +71,8 @@ impl Default for AppConfig {
             hp_monitor_x: 0,
             hp_monitor_y: 0,
             hp_monitor_color: 0,
+            hp_monitor_window_class: String::new(),
+            hp_monitor_window_title: String::new(),
         }
     }
 }
