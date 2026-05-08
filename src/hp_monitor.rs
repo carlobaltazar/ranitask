@@ -11,6 +11,18 @@ static ACTIVE: AtomicBool = AtomicBool::new(false);
 static CANCEL: AtomicBool = AtomicBool::new(false);
 
 const CLR_INVALID: u32 = 0xFFFFFFFF;
+const COLOR_TOLERANCE: u32 = 48; // Manhattan distance across BGR channels
+
+#[inline]
+fn color_dist(a: u32, b: u32) -> u32 {
+    let ar = (a & 0xFF) as i32;
+    let br = (b & 0xFF) as i32;
+    let ag = ((a >> 8) & 0xFF) as i32;
+    let bg = ((b >> 8) & 0xFF) as i32;
+    let ab = ((a >> 16) & 0xFF) as i32;
+    let bb = ((b >> 16) & 0xFF) as i32;
+    (ar - br).unsigned_abs() + (ag - bg).unsigned_abs() + (ab - bb).unsigned_abs()
+}
 
 pub fn is_active() -> bool {
     ACTIVE.load(Ordering::Acquire)
@@ -58,6 +70,8 @@ pub fn start(
             None
         };
 
+        let mut at_reference = true;
+
         loop {
             if CANCEL.load(Ordering::Acquire) {
                 break;
@@ -95,10 +109,22 @@ pub fn start(
                 }
             };
 
-            if color != CLR_INVALID && color != ref_color {
-                player::send_key_input(vk, scan_code, KEYEVENTF_SCANCODE);
-                player::send_key_input(vk, scan_code, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP);
-                thread::sleep(Duration::from_millis(200));
+            if color != CLR_INVALID {
+                let dist = color_dist(color, ref_color);
+                let matches_ref = dist <= COLOR_TOLERANCE;
+
+                if at_reference && !matches_ref {
+                    println!(
+                        "[Ranify2] HP threshold crossed (color=0x{:06X}, dist={}) -> Q",
+                        color, dist
+                    );
+                    player::send_key_input(vk, scan_code, KEYEVENTF_SCANCODE);
+                    player::send_key_input(vk, scan_code, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP);
+                    at_reference = false;
+                } else if !at_reference && matches_ref {
+                    println!("[Ranify2] HP pixel re-armed (color=0x{:06X})", color);
+                    at_reference = true;
+                }
             }
 
             thread::sleep(Duration::from_millis(200));
