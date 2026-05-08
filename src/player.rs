@@ -1,12 +1,28 @@
 use crate::sequence::{InputEvent, InputEventType, MouseButton};
 use crate::timing::PrecisionTimer;
+use crate::win32_helpers::lock_or_recover;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use winapi::um::winuser::*;
 
 static PLAYING: AtomicBool = AtomicBool::new(false);
 static CANCEL: AtomicBool = AtomicBool::new(false);
 static LOOP_MODE: AtomicBool = AtomicBool::new(false);
 static SHUFFLE_MODE: AtomicBool = AtomicBool::new(false);
+
+// Serializes all input dispatch (keyboard + mouse) so background features
+// cannot interleave events. pet_cycle holds an InputGuard across its full
+// hide→sleep→call burst; HP monitor and recorded playback acquire the same
+// lock per-event via the public send_*_input wrappers.
+static INPUT_LOCK: Mutex<()> = Mutex::new(());
+
+/// RAII proof that the global input lock is held by this thread. Hold across
+/// multi-event bursts that must not be interrupted by other features.
+pub struct InputGuard<'a>(#[allow(dead_code)] std::sync::MutexGuard<'a, ()>);
+
+pub fn lock_input_burst() -> InputGuard<'static> {
+    InputGuard(lock_or_recover(&INPUT_LOCK))
+}
 
 pub fn is_playing() -> bool {
     PLAYING.load(Ordering::Acquire)
@@ -269,6 +285,11 @@ pub fn play_sequence(events: Vec<InputEvent>) {
 }
 
 fn send_mouse_input(flags: u32, dx: i32, dy: i32, mouse_data: i32) {
+    let _g = lock_or_recover(&INPUT_LOCK);
+    send_mouse_input_raw(flags, dx, dy, mouse_data);
+}
+
+fn send_mouse_input_raw(flags: u32, dx: i32, dy: i32, mouse_data: i32) {
     let mut input = unsafe { std::mem::zeroed::<INPUT>() };
     input.type_ = INPUT_MOUSE;
     unsafe {
@@ -284,6 +305,15 @@ fn send_mouse_input(flags: u32, dx: i32, dy: i32, mouse_data: i32) {
 }
 
 pub fn send_key_input(vk: u16, scan_code: u16, flags: u32) {
+    let _g = lock_or_recover(&INPUT_LOCK);
+    send_key_input_raw(vk, scan_code, flags);
+}
+
+pub fn send_key_input_locked(_guard: &InputGuard, vk: u16, scan_code: u16, flags: u32) {
+    send_key_input_raw(vk, scan_code, flags);
+}
+
+fn send_key_input_raw(vk: u16, scan_code: u16, flags: u32) {
     let mut input = unsafe { std::mem::zeroed::<INPUT>() };
     input.type_ = INPUT_KEYBOARD;
     unsafe {

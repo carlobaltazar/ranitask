@@ -42,16 +42,22 @@ pub fn start(interval_secs: u64) {
                 break;
             }
 
-            // Press "A" (hide pet)
-            player::send_key_input(vk, scan_code, KEYEVENTF_SCANCODE);
-            player::send_key_input(vk, scan_code, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP);
+            // Hold the global input lock across the entire hide→wait→call
+            // burst so HP monitor / recorded playback cannot fire keys
+            // between the two A presses and break the sequence.
+            {
+                let guard = player::lock_input_burst();
+                // Press "A" (hide pet)
+                player::send_key_input_locked(&guard, vk, scan_code, KEYEVENTF_SCANCODE);
+                player::send_key_input_locked(&guard, vk, scan_code, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP);
 
-            // Wait 300ms
-            thread::sleep(Duration::from_millis(300));
+                // Wait 300ms
+                thread::sleep(Duration::from_millis(300));
 
-            // Press "A" again (call pet)
-            player::send_key_input(vk, scan_code, KEYEVENTF_SCANCODE);
-            player::send_key_input(vk, scan_code, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP);
+                // Press "A" again (call pet)
+                player::send_key_input_locked(&guard, vk, scan_code, KEYEVENTF_SCANCODE);
+                player::send_key_input_locked(&guard, vk, scan_code, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP);
+            }
 
             println!("[Ranify2] Pet cycle: hide/call sent.");
         }
